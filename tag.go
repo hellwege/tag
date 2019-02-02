@@ -15,6 +15,7 @@
 package tag
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,7 @@ var ErrNoTagsFound = errors.New("no tags found")
 // ReadFrom detects and parses audio file metadata tags (currently supports ID3v1,2.{2,3,4}, MP4, FLAC/OGG).
 // Returns non-nil error if the format of the given data could not be determined, or if there was a problem
 // parsing the data.
-func ReadFrom(r io.ReadSeeker) (Metadata, error) {
+func ReadFrom(ctx context.Context, r io.ReadSeeker) (Metadata, error) {
 	b, err := readBytes(r, 11)
 	if err != nil {
 		return nil, err
@@ -40,22 +41,22 @@ func ReadFrom(r io.ReadSeeker) (Metadata, error) {
 
 	switch {
 	case string(b[0:4]) == "fLaC":
-		return ReadFLACTags(r)
+		return ReadFLACTags(ctx, r)
 
 	case string(b[0:4]) == "OggS":
-		return ReadOGGTags(r)
+		return ReadOGGTags(ctx, r)
 
 	case string(b[4:8]) == "ftyp":
-		return ReadAtoms(r)
+		return ReadAtoms(ctx, r)
 
 	case string(b[0:3]) == "ID3":
-		return ReadID3v2Tags(r)
+		return ReadID3v2Tags(ctx, r)
 
 	case string(b[0:4]) == "DSD ":
-		return ReadDSFTags(r)
+		return ReadDSFTags(ctx, r)
 	}
 
-	m, err := ReadID3v1Tags(r)
+	m, err := ReadID3v1Tags(ctx, r)
 	if err != nil {
 		if err == ErrNotID3v1 {
 			err = ErrNoTagsFound

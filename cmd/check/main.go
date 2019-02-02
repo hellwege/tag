@@ -8,6 +8,7 @@ The check tool performs tag lookups on full music collections (iTunes or directo
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -169,7 +170,7 @@ func (p *processor) do(ch <-chan string) {
 				fmt.Println("IDENTIFY:", path, err.Error())
 			}
 
-			_, err = tag.ReadFrom(tf)
+			_, err = tag.ReadFrom(context.Background(), tf)
 			if err != nil {
 				fmt.Println("READFROM:", path, err.Error())
 				p.decodingErrors[err.Error()]++
@@ -182,7 +183,7 @@ func (p *processor) do(ch <-chan string) {
 					return
 				}
 
-				h, err := tag.Sum(tf)
+				h, err := tag.Sum(context.Background(), tf)
 				if err != nil {
 					fmt.Println("SUM:", path, err.Error())
 					p.hashErrors[err.Error()]++

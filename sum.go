@@ -1,6 +1,7 @@
 package tag
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/binary"
 	"errors"
@@ -11,7 +12,7 @@ import (
 
 // Sum creates a checksum of the audio file data provided by the io.ReadSeeker which is metadata
 // (ID3, MP4) invariant.
-func Sum(r io.ReadSeeker) (string, error) {
+func Sum(ctx context.Context, r io.ReadSeeker) (string, error) {
 	b, err := readBytes(r, 11)
 	if err != nil {
 		return "", err
@@ -24,19 +25,19 @@ func Sum(r io.ReadSeeker) (string, error) {
 
 	switch {
 	case string(b[0:4]) == "fLaC":
-		return SumFLAC(r)
+		return SumFLAC(ctx, r)
 
 	case string(b[4:11]) == "ftypM4A":
-		return SumAtoms(r)
+		return SumAtoms(ctx, r)
 
 	case string(b[0:3]) == "ID3":
-		return SumID3v2(r)
+		return SumID3v2(ctx, r)
 	}
 
-	h, err := SumID3v1(r)
+	h, err := SumID3v1(ctx, r)
 	if err != nil {
 		if err == ErrNotID3v1 {
-			return SumAll(r)
+			return SumAll(ctx, r)
 		}
 		return "", err
 	}
@@ -44,7 +45,7 @@ func Sum(r io.ReadSeeker) (string, error) {
 }
 
 // SumAll returns a checksum of the content from the reader (until EOF).
-func SumAll(r io.ReadSeeker) (string, error) {
+func SumAll(ctx context.Context, r io.ReadSeeker) (string, error) {
 	h := sha1.New()
 	_, err := io.Copy(h, r)
 	if err != nil {
@@ -55,8 +56,14 @@ func SumAll(r io.ReadSeeker) (string, error) {
 
 // SumAtoms constructs a checksum of MP4 audio file data provided by the io.ReadSeeker which is
 // metadata invariant.
-func SumAtoms(r io.ReadSeeker) (string, error) {
+func SumAtoms(ctx context.Context, r io.ReadSeeker) (string, error) {
 	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
 		var size uint32
 		err := binary.Read(r, binary.BigEndian, &size)
 		if err != nil {
@@ -114,7 +121,7 @@ func sizeToEndOffset(r io.ReadSeeker, offset int64) (int64, error) {
 
 // SumID3v1 constructs a checksum of MP3 audio file data (assumed to have ID3v1 tags) provided
 // by the io.ReadSeeker which is metadata invariant.
-func SumID3v1(r io.ReadSeeker) (string, error) {
+func SumID3v1(ctx context.Context, r io.ReadSeeker) (string, error) {
 	n, err := sizeToEndOffset(r, 128)
 	if err != nil {
 		return "", fmt.Errorf("error determining read size to ID3v1 header: %v", err)
@@ -135,8 +142,8 @@ func SumID3v1(r io.ReadSeeker) (string, error) {
 
 // SumID3v2 constructs a checksum of MP3 audio file data (assumed to have ID3v2 tags) provided by the
 // io.ReadSeeker which is metadata invariant.
-func SumID3v2(r io.ReadSeeker) (string, error) {
-	header, _, err := readID3v2Header(r)
+func SumID3v2(ctx context.Context, r io.ReadSeeker) (string, error) {
+	header, _, err := readID3v2Header(ctx, r)
 	if err != nil {
 		return "", fmt.Errorf("error reading ID3v2 header: %v", err)
 	}
@@ -166,7 +173,7 @@ func SumID3v2(r io.ReadSeeker) (string, error) {
 
 // SumFLAC costructs a checksum of the FLAC audio file data provided by the io.ReadSeeker (ignores
 // metadata fields).
-func SumFLAC(r io.ReadSeeker) (string, error) {
+func SumFLAC(ctx context.Context, r io.ReadSeeker) (string, error) {
 	flac, err := readString(r, 4)
 	if err != nil {
 		return "", err
@@ -176,6 +183,12 @@ func SumFLAC(r io.ReadSeeker) (string, error) {
 	}
 
 	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
 		last, err := skipFLACMetadataBlock(r)
 		if err != nil {
 			return "", err

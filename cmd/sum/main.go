@@ -9,6 +9,7 @@ The sum tool constructs a checksum of a media file exluding any metadata
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -28,7 +29,7 @@ func main() {
 	}
 	defer f.Close()
 
-	h, err := tag.Sum(f)
+	h, err := tag.Sum(context.Background(), f)
 	if err != nil {
 		fmt.Printf("error constructing checksum: %v\n", err)
 		os.Exit(1)

@@ -8,6 +8,7 @@ The tag tool reads metadata from media files (as supported by the tag library).
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -43,7 +44,7 @@ func main() {
 	}
 	defer f.Close()
 
-	m, err := tag.ReadFrom(f)
+	m, err := tag.ReadFrom(context.Background(), f)
 	if err != nil {
 		fmt.Printf("error reading file: %v\n", err)
 		return

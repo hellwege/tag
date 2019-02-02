@@ -5,6 +5,7 @@
 package tag
 
 import (
+	"context"
 	"os"
 	"testing"
 )
@@ -90,7 +91,7 @@ func test(t *testing.T, path string, metadata testMetadata) error {
 	}
 	defer f.Close()
 
-	m, err := ReadFrom(f)
+	m, err := ReadFrom(context.Background(), f)
 	if err != nil {
 		return err
 	}

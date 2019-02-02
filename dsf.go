@@ -5,6 +5,7 @@
 package tag
 
 import (
+	"context"
 	"errors"
 	"io"
 )
@@ -12,7 +13,7 @@ import (
 // ReadDSFTags reads DSF metadata from the io.ReadSeeker, returning the resulting
 // metadata in a Metadata implementation, or non-nil error if there was a problem.
 // samples: http://www.2l.no/hires/index.html
-func ReadDSFTags(r io.ReadSeeker) (Metadata, error) {
+func ReadDSFTags(ctx context.Context, r io.ReadSeeker) (Metadata, error) {
 	dsd, err := readString(r, 4)
 	if err != nil {
 		return nil, err
@@ -37,7 +38,7 @@ func ReadDSFTags(r io.ReadSeeker) (Metadata, error) {
 		return nil, err
 	}
 
-	id3, err := ReadID3v2Tags(r)
+	id3, err := ReadID3v2Tags(ctx, r)
 	if err != nil {
 		return nil, err
 	}

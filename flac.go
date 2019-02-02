@@ -5,6 +5,7 @@
 package tag
 
 import (
+	"context"
 	"errors"
 	"io"
 )
@@ -25,7 +26,7 @@ const (
 
 // ReadFLACTags reads FLAC metadata from the io.ReadSeeker, returning the resulting
 // metadata in a Metadata implementation, or non-nil error if there was a problem.
-func ReadFLACTags(r io.ReadSeeker) (Metadata, error) {
+func ReadFLACTags(ctx context.Context, r io.ReadSeeker) (Metadata, error) {
 	flac, err := readString(r, 4)
 	if err != nil {
 		return nil, err
@@ -39,7 +40,13 @@ func ReadFLACTags(r io.ReadSeeker) (Metadata, error) {
 	}
 
 	for {
-		last, err := m.readFLACMetadataBlock(r)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		last, err := m.readFLACMetadataBlock(ctx, r)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +62,7 @@ type metadataFLAC struct {
 	*metadataVorbis
 }
 
-func (m *metadataFLAC) readFLACMetadataBlock(r io.ReadSeeker) (last bool, err error) {
+func (m *metadataFLAC) readFLACMetadataBlock(ctx context.Context, r io.ReadSeeker) (last bool, err error) {
 	blockHeader, err := readBytes(r, 1)
 	if err != nil {
 		return
@@ -73,10 +80,10 @@ func (m *metadataFLAC) readFLACMetadataBlock(r io.ReadSeeker) (last bool, err er
 
 	switch blockType(blockHeader[0]) {
 	case vorbisCommentBlock:
-		err = m.readVorbisComment(r)
+		err = m.readVorbisComment(ctx, r)
 
 	case pictureBlock:
-		err = m.readPictureBlock(r)
+		err = m.readPictureBlock(ctx, r)
 
 	default:
 		_, err = r.Seek(int64(blockLen), io.SeekCurrent)

@@ -6,6 +6,7 @@ package tag
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -68,17 +69,23 @@ type metadataMP4 struct {
 
 // ReadAtoms reads MP4 metadata atoms from the io.ReadSeeker into a Metadata, returning
 // non-nil error if there was a problem.
-func ReadAtoms(r io.ReadSeeker) (Metadata, error) {
+func ReadAtoms(ctx context.Context, r io.ReadSeeker) (Metadata, error) {
 	m := metadataMP4{
 		data:     make(map[string]interface{}),
 		fileType: UnknownFileType,
 	}
-	err := m.readAtoms(r)
+	err := m.readAtoms(ctx, r)
 	return m, err
 }
 
-func (m metadataMP4) readAtoms(r io.ReadSeeker) error {
+func (m metadataMP4) readAtoms(ctx context.Context, r io.ReadSeeker) error {
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		name, size, err := readAtomHeader(r)
 		if err != nil {
 			if err == io.EOF {
@@ -97,13 +104,13 @@ func (m metadataMP4) readAtoms(r io.ReadSeeker) error {
 			fallthrough
 
 		case "moov", "udta", "ilst":
-			return m.readAtoms(r)
+			return m.readAtoms(ctx, r)
 		}
 
 		_, ok := atoms[name]
 		var data []string
 		if name == "----" {
-			name, data, err = readCustomAtom(r, size)
+			name, data, err = readCustomAtom(ctx, r, size)
 			if err != nil {
 				return err
 			}
@@ -230,10 +237,16 @@ func readAtomHeader(r io.ReadSeeker) (name string, size uint32, err error) {
 // the name, and move to the data atom.
 // Data atom could have multiple data values, each with a header.
 // If anything goes wrong, we jump at the end of the "----" atom.
-func readCustomAtom(r io.ReadSeeker, size uint32) (_ string, data []string, _ error) {
+func readCustomAtom(ctx context.Context, r io.ReadSeeker, size uint32) (_ string, data []string, _ error) {
 	subNames := make(map[string]string)
 
 	for size > 8 {
+		select {
+		case <-ctx.Done():
+			return "", nil, ctx.Err()
+		default:
+		}
+
 		subName, subSize, err := readAtomHeader(r)
 		if err != nil {
 			return "", nil, err

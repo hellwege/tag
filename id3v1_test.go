@@ -6,6 +6,7 @@ package tag
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/dhowden/tag/internal/id3v1_test"
@@ -30,7 +31,7 @@ func TestReadID3v1Tags(t *testing.T) {
 
 func doTest(name string, track int, length int, t *testing.T) {
 	mp3 := id3v1_test.MustAsset(name)
-	metadata, _ := ReadID3v1Tags(bytes.NewReader(mp3))
+	metadata, _ := ReadID3v1Tags(context.Background(), bytes.NewReader(mp3))
 	if actual, total := metadata.Track(); actual != track || total != 0 {
 		t.Errorf("Track number for %s is (%d, %d) where (%d, 0) is expected.", name, actual, total, track)
 	}

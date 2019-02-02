@@ -5,6 +5,7 @@
 package tag
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,7 +25,7 @@ type metadataVorbis struct {
 	p *Picture
 }
 
-func (m *metadataVorbis) readVorbisComment(r io.Reader) error {
+func (m *metadataVorbis) readVorbisComment(ctx context.Context, r io.Reader) error {
 	vendorLen, err := readInt32LittleEndian(r)
 	if err != nil {
 		return err
@@ -46,6 +47,12 @@ func (m *metadataVorbis) readVorbisComment(r io.Reader) error {
 	}
 
 	for i := 0; i < commentsLen; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		l, err := readInt32LittleEndian(r)
 		if err != nil {
 			return err
@@ -63,7 +70,7 @@ func (m *metadataVorbis) readVorbisComment(r io.Reader) error {
 	return nil
 }
 
-func (m *metadataVorbis) readPictureBlock(r io.Reader) error {
+func (m *metadataVorbis) readPictureBlock(ctx context.Context, r io.Reader) error {
 	b, err := readInt(r, 4)
 	if err != nil {
 		return err

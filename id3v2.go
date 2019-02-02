@@ -5,6 +5,7 @@
 package tag
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"regexp"
@@ -53,7 +54,7 @@ type id3v2Header struct {
 
 // readID3v2Header reads the ID3v2 header from the given io.Reader.
 // offset it number of bytes of header that was read
-func readID3v2Header(r io.Reader) (h *id3v2Header, offset int, err error) {
+func readID3v2Header(ctx context.Context, r io.Reader) (h *id3v2Header, offset int, err error) {
 	offset = 10
 	b, err := readBytes(r, offset)
 	if err != nil {
@@ -219,10 +220,16 @@ func readID3v2_4FrameHeader(r io.Reader) (name string, size int, headerSize int,
 }
 
 // readID3v2Frames reads ID3v2 frames from the given reader using the ID3v2Header.
-func readID3v2Frames(r io.Reader, offset int, h *id3v2Header) (map[string]interface{}, error) {
+func readID3v2Frames(ctx context.Context, r io.Reader, offset int, h *id3v2Header) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 
 	for offset < h.Size {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		var err error
 		var name string
 		var size, headerSize int
@@ -390,8 +397,8 @@ func (r *unsynchroniser) Read(p []byte) (int, error) {
 
 // ReadID3v2Tags parses ID3v2.{2,3,4} tags from the io.ReadSeeker into a Metadata, returning
 // non-nil error on failure.
-func ReadID3v2Tags(r io.ReadSeeker) (Metadata, error) {
-	h, offset, err := readID3v2Header(r)
+func ReadID3v2Tags(ctx context.Context, r io.ReadSeeker) (Metadata, error) {
+	h, offset, err := readID3v2Header(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +408,7 @@ func ReadID3v2Tags(r io.ReadSeeker) (Metadata, error) {
 		ur = &unsynchroniser{Reader: r}
 	}
 
-	f, err := readID3v2Frames(ur, offset, h)
+	f, err := readID3v2Frames(ctx, ur, offset, h)
 	if err != nil {
 		return nil, err
 	}
